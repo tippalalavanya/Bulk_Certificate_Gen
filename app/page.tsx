@@ -56,7 +56,17 @@ function createBrowserCertificate(name: string, course: string, issueDate: strin
   ]
   const commands = ['BT', '/F1 22 Tf', '288 720 Td', `(${escapePdfText(lines[0])}) Tj`, '/F1 12 Tf', '0 -50 Td', `(${escapePdfText(lines[1])}) Tj`, '/F1 24 Tf', '0 -55 Td', `(${escapePdfText(lines[2])}) Tj`, '/F1 12 Tf', '0 -55 Td', `(${escapePdfText(lines[3])}) Tj`, '0 -40 Td', `(${escapePdfText(lines[4])}) Tj`, '0 -25 Td', `(${escapePdfText(lines[5])}) Tj`, '0 -30 Td', `(${escapePdfText(lines[6])}) Tj`, 'ET'].join('\\n')
   const objects = [`1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj`, `2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj`, `3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>endobj`, `4 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj`, `5 0 obj<< /Length ${commands.length} >>stream\\n${commands}\\nendstream\\nendobj`]
-  const pdf = `%PDF-1.4\\n${objects.join('\\n')}\\ntrailer<< /Root 1 0 R >>\\n%%EOF`
+  const header = '%PDF-1.4\\n%\\xE2\\xE3\\xCF\\xD3\\n'
+  let pdf = header
+  const offsets: number[] = []
+  for (const object of objects) {
+    offsets.push(new TextEncoder().encode(pdf).length)
+    pdf += `${object}\\n`
+  }
+  const xrefOffset = new TextEncoder().encode(pdf).length
+  pdf += `xref\\n0 ${objects.length + 1}\\n0000000000 65535 f \\n`
+  for (const offset of offsets) pdf += `${String(offset).padStart(10, '0')} 00000 n \\n`
+  pdf += `trailer\\n<< /Size ${objects.length + 1} /Root 1 0 R >>\\nstartxref\\n${xrefOffset}\\n%%EOF`
   return { id, url: URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' })) }
 }
 
@@ -99,6 +109,22 @@ export default function Page() {
 
   function addRecipient() { setRecipients((current) => [...current, { name: '', email: '' }]) }
   function removeRecipient(index: number) { setRecipients((current) => current.length === 1 ? current : current.filter((_, itemIndex) => itemIndex !== index)) }
+
+  async function openCertificate(result: Result) {
+    const preview = window.open('', '_blank')
+    try {
+      const url = result.download_url ?? `${API_BASE}/api/v1/certificates/${result.certificate_id}`
+      const response = result.download_url ? null : await fetch(url)
+      if (response && !response.ok) throw new Error('The certificate file is not available yet.')
+      const fileUrl = response ? URL.createObjectURL(await response.blob()) : url
+      if (preview) preview.location.href = fileUrl
+      else window.location.href = fileUrl
+      if (response) window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60_000)
+    } catch (error) {
+      preview?.close()
+      setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Unable to open certificate.' })
+    }
+  }
 
   async function createJob(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -168,7 +194,7 @@ export default function Page() {
 
         <aside className="space-y-5">
           <div className="rounded-2xl border border-[#e1e7ed] bg-[#102a43] p-5 text-white shadow-[0_12px_35px_rgba(16,42,67,0.16)] sm:p-6"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#8ee3c7]">Live job monitor</p><h2 className="mt-2 text-xl font-semibold">{job ? statusLabel : 'No active job'}</h2></div><div className="rounded-lg bg-white/10 p-2">{isActive ? <Loader2 className="size-5 animate-spin text-[#8ee3c7]" /> : <Clock3 className="size-5 text-[#8ee3c7]" />}</div></div><div className="mt-7"><div className="mb-2 flex justify-between text-xs text-white/65"><span>Progress</span><span className="font-semibold text-white">{progress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-white/15"><div className="h-full rounded-full bg-[#8ee3c7] transition-all duration-500" style={{ width: `${progress}%` }} /></div></div><div className="mt-6 grid grid-cols-3 gap-2 border-t border-white/10 pt-5 text-center"><div><p className="text-xl font-semibold">{completed}</p><p className="mt-1 text-[10px] uppercase tracking-wider text-white/55">Done</p></div><div><p className="text-xl font-semibold">{pending}</p><p className="mt-1 text-[10px] uppercase tracking-wider text-white/55">Pending</p></div><div><p className="text-xl font-semibold">{failed}</p><p className="mt-1 text-[10px] uppercase tracking-wider text-white/55">Failed</p></div></div></div>
-          <div className="rounded-2xl border border-[#e1e7ed] bg-white p-5 dark:border-white/10 dark:bg-[#111a27] sm:p-6"><div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Batch results</h2>{job && <button type="button" onClick={() => void loadJob(job.job_id)} className="icon-button" aria-label="Refresh results"><RefreshCw className="size-4" /></button>}</div>{job ? <><p className="mt-1 truncate font-mono text-[10px] text-[#8a96a8]">{job.job_id}</p><div className="mt-4 space-y-2">{results.length ? results.map((result) => <div key={result.result_id} className="flex items-center justify-between rounded-lg border border-[#edf0f3] px-3 py-2.5 dark:border-white/10"><div className="min-w-0"><p className="truncate text-xs font-medium">{result.name}</p><p className={`mt-0.5 text-[10px] capitalize ${result.status === 'completed' ? 'text-[#158f78]' : result.status === 'failed' ? 'text-[#b33b3b]' : 'text-[#8a96a8]'}`}>{result.status}</p></div>{result.certificate_id && <a href={result.download_url ?? `${API_BASE}/api/v1/certificates/${result.certificate_id}`} download={result.download_url ? `certificate-${result.certificate_id}.pdf` : undefined} target={result.download_url ? undefined : '_blank'} rel={result.download_url ? undefined : 'noreferrer'} className="ml-3 rounded-md p-1.5 text-[#158f78] transition hover:bg-[#edf8f5]" aria-label={`Download certificate for ${result.name}`}><Download className="size-4" /></a>}</div>) : <div className="py-7 text-center text-xs text-[#8a96a8]">Results will appear as recipients finish.</div>}</div></> : <div className="py-8 text-center"><div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-full bg-[#f1f4f7] text-[#8a96a8] dark:bg-white/10"><FileCheck2 className="size-5" /></div><p className="text-xs text-[#718096]">Submit a batch to track it here.</p></div>}</div>
+          <div className="rounded-2xl border border-[#e1e7ed] bg-white p-5 dark:border-white/10 dark:bg-[#111a27] sm:p-6"><div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Batch results</h2>{job && <button type="button" onClick={() => void loadJob(job.job_id)} className="icon-button" aria-label="Refresh results"><RefreshCw className="size-4" /></button>}</div>{job ? <><p className="mt-1 truncate font-mono text-[10px] text-[#8a96a8]">{job.job_id}</p><div className="mt-4 space-y-2">{results.length ? results.map((result) => <div key={result.result_id} className="flex items-center justify-between rounded-lg border border-[#edf0f3] px-3 py-2.5 dark:border-white/10"><div className="min-w-0"><p className="truncate text-xs font-medium">{result.name}</p><p className={`mt-0.5 text-[10px] capitalize ${result.status === 'completed' ? 'text-[#158f78]' : result.status === 'failed' ? 'text-[#b33b3b]' : 'text-[#8a96a8]'}`}>{result.status}</p></div>{result.certificate_id && <button type="button" onClick={() => void openCertificate(result)} className="ml-3 rounded-md p-1.5 text-[#158f78] transition hover:bg-[#edf8f5]" aria-label={`Open certificate for ${result.name}`} title="Open certificate"><Download className="size-4" /></button>}</div>) : <div className="py-7 text-center text-xs text-[#8a96a8]">Results will appear as recipients finish.</div>}</div></> : <div className="py-8 text-center"><div className="mx-auto mb-3 flex size-10 items-center justify-center rounded-full bg-[#f1f4f7] text-[#8a96a8] dark:bg-white/10"><FileCheck2 className="size-5" /></div><p className="text-xs text-[#718096]">Submit a batch to track it here.</p></div>}</div>
           <div className="rounded-2xl border border-[#d8eee7] bg-[#f0fbf7] p-4 text-xs leading-5 text-[#246b5c] dark:border-[#1e5148] dark:bg-[#102a35] dark:text-[#a7e0d0]"><p className="font-semibold">How processing works</p><p className="mt-1">Each recipient is processed independently. One failure will not stop the remaining certificates from being generated.</p></div>
         </aside>
       </div>
