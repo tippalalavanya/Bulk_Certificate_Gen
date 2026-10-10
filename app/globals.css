@@ -161,3 +161,17 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .field {
+    @apply mt-1.5 min-h-11 w-full rounded-xl border border-[#dfe5eb] bg-white px-3.5 py-2.5 text-sm font-normal text-[#152033] outline-none transition placeholder:text-[#a1adba] focus:border-[#158f78] focus:ring-4 focus:ring-[#158f78]/10 dark:border-white/10 dark:bg-white/[0.04] dark:text-white dark:placeholder:text-[#718096];
+  }
+
+  .field-compact {
+    @apply mt-0 min-h-10 rounded-lg bg-white px-3 dark:bg-[#151f2d];
+  }
+
+  .icon-button {
+    @apply inline-flex size-9 shrink-0 items-center justify-center rounded-lg text-[#8a96a8] transition hover:bg-[#f1f4f7] hover:text-[#b33b3b] disabled:cursor-not-allowed disabled:opacity-35 dark:hover:bg-white/10;
+  }
+}
