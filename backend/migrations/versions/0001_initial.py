@@ -1,0 +1,9 @@
+from alembic import op
+import sqlalchemy as sa
+revision = "0001_initial"; down_revision = None; branch_labels = None; depends_on = None
+def upgrade():
+    op.create_table("certificate_jobs", sa.Column("id", sa.String(36), primary_key=True), sa.Column("course_name", sa.String(200), nullable=False), sa.Column("issue_date", sa.Date, nullable=False), sa.Column("status", sa.String(32), nullable=False), sa.Column("created_at", sa.DateTime(timezone=True), nullable=False), sa.Column("started_at", sa.DateTime(timezone=True)), sa.Column("completed_at", sa.DateTime(timezone=True)))
+    op.create_index("ix_certificate_jobs_status", "certificate_jobs", ["status"])
+    op.create_table("recipient_results", sa.Column("id", sa.String(36), primary_key=True), sa.Column("job_id", sa.String(36), sa.ForeignKey("certificate_jobs.id", ondelete="CASCADE"), nullable=False), sa.Column("name", sa.String(200), nullable=False), sa.Column("email", sa.String(320), nullable=False), sa.Column("status", sa.String(32), nullable=False), sa.Column("certificate_id", sa.String(36), unique=True), sa.Column("storage_key", sa.String(255), unique=True), sa.Column("failure_code", sa.String(64)), sa.Column("failure_message", sa.String(255)), sa.Column("created_at", sa.DateTime(timezone=True), nullable=False), sa.Column("started_at", sa.DateTime(timezone=True)), sa.Column("completed_at", sa.DateTime(timezone=True)))
+    op.create_index("ix_recipient_results_status", "recipient_results", ["status"]); op.create_index("ix_recipient_results_certificate_id", "recipient_results", ["certificate_id"]); op.create_index("ix_recipient_job_email", "recipient_results", ["job_id", "email"], unique=True)
+def downgrade(): op.drop_table("recipient_results"); op.drop_index("ix_certificate_jobs_status", table_name="certificate_jobs"); op.drop_table("certificate_jobs")
