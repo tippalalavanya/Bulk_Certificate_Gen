@@ -45,28 +45,32 @@ function escapePdfText(value: string) {
 
 function createBrowserCertificate(name: string, course: string, issueDate: string) {
   const id = crypto.randomUUID()
-  const lines = [
-    'CERTIFICATE OF COMPLETION',
-    'This certificate is proudly presented to',
-    name,
-    `for successfully completing ${course}`,
-    `Issued on ${issueDate}`,
-    `Certificate ID: ${id}`,
-    'Example Academy',
+  const safe = (value: string) => escapePdfText(value)
+  const accent = (Array.from(course).reduce((total, character) => total + character.charCodeAt(0), 0) % 2) === 0 ? '0.17 0.75 0.68' : '0.71 0.48 0.95'
+  const commands = [
+    'q', '1 1 1 rg', '0 0 842 595 re f', '0.06 0.16 0.26 rg', '0 0 118 595 re f', `${accent} rg`, '32 510 54 54 re f', '1 1 1 rg', 'BT /F1 28 Tf 50 527 Td (C) Tj ET',
+    '0.92 0.67 0.16 RG 2 w 24 24 794 547 re S', '0.06 0.16 0.26 RG 0.7 w 138 42 662 511 re S',
+    '0.06 0.16 0.26 rg', 'BT /F2 25 Tf 309 490 Td (CERTIFICATE OF COMPLETION) Tj ET', `${accent} rg`, 'BT /F2 9 Tf 345 468 Td (PROUDLY PRESENTED WITH DISTINCTION) Tj ET',
+    '0.36 0.40 0.46 rg', 'BT /F1 13 Tf 334 418 Td (This certificate is awarded to) Tj ET', '0.06 0.16 0.26 rg', `BT /F2 32 Tf 421 ${name.length > 24 ? 344 : 360} Td (${safe(name)}) Tj ET`, `${accent} RG 1.4 w 368 338 106 0 re S`,
+    '0.36 0.40 0.46 rg', 'BT /F1 13 Tf 350 302 Td (for successfully completing) Tj ET', '0.06 0.16 0.26 rg', `BT /F2 22 Tf 421 266 Td (${safe(course)}) Tj ET`,
+    '0.36 0.40 0.46 rg', `BT /F1 10 Tf 301 91 Td (Issued ${safe(issueDate)}  -  Certificate ID ${safe(id)}) Tj ET`, '0.06 0.16 0.26 rg', 'BT /F2 12 Tf 377 70 Td (Example Academy) Tj ET', '0.44 0.50 0.58 rg', 'BT /F3 9 Tf 337 53 Td (Verified certificate of achievement) Tj ET', 'Q',
+  ].join('\n')
+  const encoder = new TextEncoder()
+  const stream = `${commands}\n`
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 4 0 R /F2 5 0 R /F3 6 0 R >> >> /Contents 7 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Oblique >>',
+    `<< /Length ${encoder.encode(stream).length} >>\nstream\n${stream}endstream`,
   ]
-  const commands = ['BT', '/F1 22 Tf', '288 720 Td', `(${escapePdfText(lines[0])}) Tj`, '/F1 12 Tf', '0 -50 Td', `(${escapePdfText(lines[1])}) Tj`, '/F1 24 Tf', '0 -55 Td', `(${escapePdfText(lines[2])}) Tj`, '/F1 12 Tf', '0 -55 Td', `(${escapePdfText(lines[3])}) Tj`, '0 -40 Td', `(${escapePdfText(lines[4])}) Tj`, '0 -25 Td', `(${escapePdfText(lines[5])}) Tj`, '0 -30 Td', `(${escapePdfText(lines[6])}) Tj`, 'ET'].join('\\n')
-  const objects = [`1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj`, `2 0 obj<< /Type /Pages /Kids [3 0 R] /Count 1 >>endobj`, `3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>endobj`, `4 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj`, `5 0 obj<< /Length ${commands.length} >>stream\\n${commands}\\nendstream\\nendobj`]
-  const header = '%PDF-1.4\\n%\\xE2\\xE3\\xCF\\xD3\\n'
-  let pdf = header
-  const offsets: number[] = []
-  for (const object of objects) {
-    offsets.push(new TextEncoder().encode(pdf).length)
-    pdf += `${object}\\n`
-  }
-  const xrefOffset = new TextEncoder().encode(pdf).length
-  pdf += `xref\\n0 ${objects.length + 1}\\n0000000000 65535 f \\n`
-  for (const offset of offsets) pdf += `${String(offset).padStart(10, '0')} 00000 n \\n`
-  pdf += `trailer\\n<< /Size ${objects.length + 1} /Root 1 0 R >>\\nstartxref\\n${xrefOffset}\\n%%EOF`
+  let pdf = '%PDF-1.4\n%PDFCERT\n'
+  const offsets = [0]
+  objects.forEach((object, index) => { offsets.push(encoder.encode(pdf).length); pdf += `${index + 1} 0 obj\n${object}\nendobj\n` })
+  const xrefOffset = encoder.encode(pdf).length
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.slice(1).map((offset) => `${String(offset).padStart(10, '0')} 00000 n \n`).join('')}trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`
   return { id, url: URL.createObjectURL(new Blob([pdf], { type: 'application/pdf' })) }
 }
 
@@ -111,17 +115,20 @@ export default function Page() {
   function removeRecipient(index: number) { setRecipients((current) => current.length === 1 ? current : current.filter((_, itemIndex) => itemIndex !== index)) }
 
   async function openCertificate(result: Result) {
-    const preview = window.open('', '_blank')
     try {
       const url = result.download_url ?? `${API_BASE}/api/v1/certificates/${result.certificate_id}`
-      const response = result.download_url ? null : await fetch(url)
+      const response = result.download_url ? null : await fetch(url, { headers: { Accept: 'application/pdf' } })
       if (response && !response.ok) throw new Error('The certificate file is not available yet.')
+
       const fileUrl = response ? URL.createObjectURL(await response.blob()) : url
-      if (preview) preview.location.href = fileUrl
-      else window.location.href = fileUrl
-      if (response) window.setTimeout(() => URL.revokeObjectURL(fileUrl), 60_000)
+      const link = document.createElement('a')
+      link.href = fileUrl
+      link.target = '_blank'
+      link.rel = 'noopener noreferrer'
+      link.click()
+
+      if (response) window.setTimeout(() => URL.revokeObjectURL(fileUrl), 5 * 60_000)
     } catch (error) {
-      preview?.close()
       setNotice({ type: 'error', text: error instanceof Error ? error.message : 'Unable to open certificate.' })
     }
   }
