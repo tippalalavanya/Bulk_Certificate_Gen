@@ -73,7 +73,7 @@ Start the application:
 npm run dev
 ```
 
-Open [http://localhost:3000](https://certify-git-main-tippalalavanyas-projects.vercel.app) in your browser to view the application.
+Open [http://localhost:3000](https://certify-two-jade.vercel.app?_vercel_share=kAtaQkLnToOhAC3Q1sLZ0ikvjP1eG3Um) in your browser to view the application.
 
 The application will automatically update when you modify supported source files.
 
@@ -99,7 +99,7 @@ Note: Update this structure to match the actual repository.
 
 The application is deployed on Vercel.
 
-[View Live Application](https://certify-git-main-tippalalavanyas-projects.vercel.app/)
+[View Live Application](https://certify-two-jade.vercel.app?_vercel_share=kAtaQkLnToOhAC3Q1sLZ0ikvjP1eG3Um)
 
 ## Assessment Requirements
 
