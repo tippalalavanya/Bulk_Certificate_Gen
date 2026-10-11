@@ -50,7 +50,7 @@ Make sure you have the following installed:
 Clone the repository:
 
 ```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
+git clone https://github.com/tippalalavanya/Bulk_Certificate_Gen.git
 ```
 
 Navigate to the project directory:
